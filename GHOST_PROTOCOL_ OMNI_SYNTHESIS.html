@@ -1,0 +1,405 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>GHOST_PROTOCOL: OMNI_SYNTHESIS</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;800&display=swap');
+
+        :root {
+            --neon: #00ff9d; --bg: #010203; --panel: rgba(10, 15, 25, 0.9);
+            --accent: #0ea5e9; --warn: #f43f5e; --success: #10b981; --gold: #f59e0b;
+            --dim: #1e293b; --app-height: 100dvh;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        
+        body, html { 
+            margin: 0; padding: 0; background: #000; color: var(--neon); 
+            font-family: 'JetBrains Mono', monospace; 
+            height: var(--app-height); width: 100vw; overflow: hidden; font-size: 11px;
+            position: fixed;
+        }
+
+        /* --- Visual FX --- */
+        canvas { position: fixed; inset: 0; z-index: -1; opacity: 0.15; }
+        .crt::before {
+            content: " "; display: block; position: absolute; inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 1000; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+
+        /* --- Layout --- */
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            grid-template-rows: 40px 1fr 1fr 140px;
+            height: var(--app-height); padding: 8px; gap: 8px;
+            display: none; /* Hidden until boot */
+        }
+
+        header {
+            grid-column: span 2; background: var(--panel); border: 1px solid var(--dim);
+            display: flex; justify-content: space-between; align-items: center; padding: 0 15px;
+            font-size: 10px; font-weight: 800; border-radius: 4px;
+        }
+
+        .pane { background: var(--panel); border: 1px solid var(--dim); border-radius: 4px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+        .pane-header { background: var(--dim); color: var(--accent); padding: 5px 10px; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+
+        /* --- Terminal --- */
+        #main-terminal { flex: 1; padding: 15px; overflow-y: auto; color: #fff; font-size: 12px; line-height: 1.5; scroll-behavior: smooth; }
+        .term-in { color: var(--neon); }
+        .term-out { color: #94a3b8; }
+        .term-warn { color: var(--warn); font-weight: 800; }
+
+        /* --- Stats & Mini-game --- */
+        .stat-row { padding: 8px 12px; font-size: 10px; }
+        .bar-bg { background: #000; height: 5px; width: 100%; margin-top: 5px; border-radius: 3px; overflow: hidden; }
+        .bar-fill { height: 100%; background: var(--accent); width: 0%; transition: 0.3s; }
+
+        .game-zone { flex: 1; border: 1px dashed var(--dim); margin: 10px; position: relative; background: rgba(0,0,0,0.4); }
+        .sync-node {
+            position: absolute; padding: 8px 12px; border: 1px solid var(--neon);
+            background: rgba(0, 255, 157, 0.1); color: var(--neon); font-size: 10px;
+            cursor: pointer; border-radius: 2px; display: none; z-index: 100;
+        }
+
+        /* --- Action Deck --- */
+        .deck { grid-column: span 2; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .btn {
+            background: transparent; border: 1px solid var(--dim); color: var(--neon);
+            cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .btn:disabled { opacity: 0.2; cursor: default; }
+        .btn:not(:disabled):hover { border-color: var(--neon); background: rgba(0, 255, 157, 0.05); }
+        .btn-label { font-size: 11px; font-weight: 800; }
+        .btn-sub { font-size: 7px; opacity: 0.6; margin-top: 2px; }
+
+        /* --- Final CLI Overlay --- */
+        #cli-overlay {
+            position: fixed; inset: 0; background: #000; z-index: 5000;
+            display: none; flex-direction: column; padding: 40px; overflow-y: auto;
+            color: var(--neon); font-size: 14px; line-height: 1.6;
+        }
+
+        /* --- Boot Screen --- */
+        #boot-screen {
+            position: fixed; inset: 0; background: #000; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .ignite-btn {
+            padding: 20px 50px; border: 1px solid var(--neon); background: none;
+            color: var(--neon); font-family: inherit; font-size: 18px; letter-spacing: 10px;
+            cursor: pointer; box-shadow: 0 0 20px rgba(0, 255, 157, 0.2);
+        }
+        .ignite-btn:hover { background: var(--neon); color: #000; }
+
+        .cursor { display: inline-block; width: 10px; height: 18px; background: var(--neon); animation: blink 0.8s infinite; vertical-align: middle; }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; grid-template-rows: 40px 1.5fr 1fr 1fr 140px; }
+            .pane-map { display: none; }
+        }
+    </style>
+</head>
+<body class="crt">
+
+<canvas id="matrix"></canvas>
+
+<div id="boot-screen" onclick="initialize()">
+    <div style="font-size: 10px; color: #334155; margin-bottom: 20px;">[ SYSTEM_V10_SYNTHESIS_READY ]</div>
+    <button class="ignite-btn">ESTABLISH_LINK</button>
+</div>
+
+<div class="container" id="ui">
+    <header>
+        <div>NODE: <span id="node-id">SYNCING...</span></div>
+        <div id="clock">00:00:00</div>
+        <div style="color: var(--accent)">ENCRYPTION: AES-512-GCM</div>
+    </header>
+
+    <!-- Terminal -->
+    <div class="pane" style="grid-row: span 2;">
+        <div class="pane-header">ENCRYPTED_LOG (tty1)</div>
+        <div id="main-terminal">
+            <div class="term-out">[!] AWAITING UPLINK COMMANDS...</div>
+        </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="pane">
+        <div class="pane-header">HARDWARE_TELEMETRY</div>
+        <div class="stat-row">
+            CPU_LOAD <span id="cpu-val" style="float:right">0%</span>
+            <div class="bar-bg"><div id="cpu-bar" class="bar-fill"></div></div>
+        </div>
+        <div class="stat-row">
+            STABILITY <span id="stab-val" style="float:right">100%</span>
+            <div class="bar-bg"><div id="stab-bar" class="bar-fill" style="width:100%; background:var(--neon)"></div></div>
+        </div>
+        <div class="stat-row" style="font-size: 8px; color: var(--accent); line-height: 1.4;" id="sys-info"></div>
+    </div>
+
+    <!-- Mini-game Area -->
+    <div class="pane">
+        <div class="pane-header">SIGNAL_CALIBRATION_MODULE</div>
+        <div class="game-zone" id="game-zone">
+            <div style="font-size: 7px; opacity: 0.3; text-align: center; margin-top: 30%;">MANUAL_SYNC_REQUIRED</div>
+            <div id="sync-node" class="sync-node" onclick="handleSync()">SYNC_CORE</div>
+        </div>
+    </div>
+
+    <!-- Geospatial -->
+    <div class="pane pane-map" style="grid-column: span 2;">
+        <div class="pane-header">GEOSPATIAL_UPLINK_MAP</div>
+        <div style="flex:1; display:flex; align-items:center; justify-content:center; opacity:0.2;">
+            <pre style="font-size: 8px;">
+                _ _ # # _ _ . . . . . . . . . . . # # # # # # # . . .
+                . . . # # # # # # # . . . . . # # # # # # # # # . .
+                . . # # # # # # # # # . . . # # # # # # # # # # # .
+                . . . # # # # # # # . . . . . # # # # # # # # # . .
+                . . . . . # # # . . . . . . . . . . # # # # . . . .
+            </pre>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <footer class="deck">
+        <button class="btn" id="btn-1" onclick="startPhase1()">
+            <span class="btn-label">PHASE_01</span>
+            <span class="btn-sub">RECON & SCAN</span>
+        </button>
+        <button class="btn" id="btn-2" disabled onclick="startPhase2()">
+            <span class="btn-label">PHASE_02</span>
+            <span class="btn-sub">BYPASS & BREACH</span>
+        </button>
+        <button class="btn" id="btn-3" disabled onclick="startPhase3()">
+            <span class="btn-label">PHASE_03</span>
+            <span class="btn-sub">EXFILTRATE</span>
+        </button>
+    </footer>
+</div>
+
+<!-- Final Authentic CLI -->
+<div id="cli-overlay">
+    <div id="cli-log"></div>
+    <div id="cli-input-line">
+        <span id="cli-prompt">root@remote-srv:~# </span><span id="cli-typing"></span><span class="cursor"></span>
+    </div>
+</div>
+
+<script>
+    let stability = 100;
+    let isGaming = false;
+    let audioCtx;
+    let moveInterval;
+    let progress = 0;
+
+    const missionScript = [
+        { type: 'out', msg: "[*] Establishing secure proxy via Tor network..." },
+        { type: 'out', msg: "[*] Target found: 192.168.1.105 (Linux 5.4.0-72-generic)" },
+        { type: 'out', msg: "[!] Vulnerability identified: CVE-2024-SAMEDIT" },
+        { type: 'out', msg: "[*] Injecting polymorphic shellcode..." },
+        { type: 'out', msg: "[+] Payload delivered. Escalating privileges..." }
+    ];
+
+    /** --- Audio Engine --- **/
+    function playBeep(f, d, v=0.02) {
+        if(!audioCtx) return;
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.frequency.value = f; g.gain.value = v;
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + d);
+    }
+
+    /** --- Initialize --- **/
+    async function initialize() {
+        const doc = document.documentElement;
+        if (doc.requestFullscreen) doc.requestFullscreen();
+        
+        document.getElementById('boot-screen').style.display = 'none';
+        document.getElementById('ui').style.display = 'grid';
+        
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        initMatrix();
+        getSysInfo();
+        
+        document.getElementById('node-id').innerText = "GHOST-" + Math.random().toString(36).substr(2, 6).toUpperCase();
+
+        setInterval(() => {
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+            if(isGaming) {
+                stability -= 0.6;
+                updateUI();
+            }
+        }, 150);
+    }
+
+    function getSysInfo() {
+        const info = document.getElementById('sys-info');
+        info.innerHTML = `
+            PLATFORM: ${navigator.platform}<br>
+            CORES: ${navigator.hardwareConcurrency || 8}x THREADS<br>
+            VENDOR: ${navigator.vendor || "Webkit"}<br>
+            ADDR: 192.168.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}
+        `;
+    }
+
+    function updateUI() {
+        document.getElementById('stab-bar').style.width = stability + "%";
+        document.getElementById('stab-val').innerText = Math.floor(stability) + "%";
+        
+        document.getElementById('cpu-bar').style.width = (Math.random()*15 + (isGaming?60:10)) + "%";
+        document.getElementById('cpu-val').innerText = Math.floor(parseFloat(document.getElementById('cpu-bar').style.width)) + "%";
+
+        if(stability <= 0) {
+            alert("CONNECTION LOST: SIGNAL DEGRADED");
+            location.reload();
+        }
+    }
+
+    /** --- Narrative Phases --- **/
+    async function addLog(text, className = "term-out") {
+        const term = document.getElementById('main-terminal');
+        const div = document.createElement('div');
+        div.className = className;
+        div.innerText = text;
+        term.appendChild(div);
+        term.scrollTop = term.scrollHeight;
+        playBeep(400, 0.05);
+        await new Promise(r => setTimeout(r, 100));
+    }
+
+    async function startPhase1() {
+        document.getElementById('btn-1').disabled = true;
+        for(let step of missionScript.slice(0, 3)) {
+            await addLog(step.msg);
+            await new Promise(r => setTimeout(r, 1000));
+        }
+        document.getElementById('btn-2').disabled = false;
+    }
+
+    async function startPhase2() {
+        document.getElementById('btn-2').disabled = true;
+        isGaming = true;
+        moveNode();
+        moveInterval = setInterval(moveNode, 1000);
+        
+        await addLog("[!] BREACH IN PROGRESS... MAINTAIN SIGNAL!", "term-warn");
+        for(let i=0; i<=100; i+=20) {
+            await addLog(`[*] Cracking RSA-4096 layer: ${i}%`);
+            await new Promise(r => setTimeout(r, 2000));
+        }
+        document.getElementById('btn-3').disabled = false;
+    }
+
+    async function startPhase3() {
+        document.getElementById('btn-3').disabled = true;
+        await addLog("[*] Bridge established. Initiating data exfiltration...", "term-success");
+        await new Promise(r => setTimeout(r, 2000));
+        
+        // Switch to CLI Mode
+        isGaming = false;
+        clearInterval(moveInterval);
+        document.getElementById('ui').style.display = 'none';
+        document.getElementById('cli-overlay').style.display = 'flex';
+        runFinalCLI();
+    }
+
+    /** --- Mini-game Logic --- **/
+    function moveNode() {
+        if(!isGaming) return;
+        const btn = document.getElementById('sync-node');
+        const zone = document.getElementById('game-zone');
+        const x = Math.random() * (zone.offsetWidth - 70);
+        const y = Math.random() * (zone.offsetHeight - 40);
+        btn.style.left = x + "px";
+        btn.style.top = y + "px";
+        btn.style.display = 'block';
+    }
+
+    function handleSync() {
+        stability = Math.min(100, stability + 15);
+        playBeep(800, 0.05);
+        updateUI();
+        moveNode();
+    }
+
+    /** --- Final CLI Sequence --- **/
+    async function runFinalCLI() {
+        const steps = [
+            { cmd: "whoami", res: "root" },
+            { cmd: "ls -la /etc/shadow", res: "-rw------- 1 root root 1242 May 22 10:44 /etc/shadow" },
+            { cmd: "cat /root/secret_vault.db | grep 'API_KEY'", res: "[SUCCESS] KEY FOUND: 0x8892_AA_XX_99_FF" },
+            { cmd: "shred -u /var/log/auth.log", res: "Cleaning tracks... [DONE]" },
+            { cmd: "exit", res: "CONNECTION CLOSED. GHOST_OUT." }
+        ];
+
+        const log = document.getElementById('cli-log');
+        const typing = document.getElementById('cli-typing');
+
+        for(let s of steps) {
+            // Type command
+            for(let char of s.cmd) {
+                typing.innerText += char;
+                playBeep(600, 0.02);
+                await new Promise(r => setTimeout(r, 50 + Math.random()*50));
+            }
+            await new Promise(r => setTimeout(r, 500));
+            
+            // Show result
+            const p = document.createElement('div');
+            p.innerText = "root@remote-srv:~# " + s.cmd;
+            log.appendChild(p);
+            
+            const r = document.createElement('div');
+            r.style.color = "#888";
+            r.style.marginBottom = "15px";
+            r.innerText = s.res;
+            log.appendChild(r);
+            
+            typing.innerText = "";
+            document.getElementById('cli-overlay').scrollTop = document.getElementById('cli-overlay').scrollHeight;
+            await new Promise(r => setTimeout(r, 800));
+        }
+
+        const finale = document.createElement('div');
+        finale.style.fontSize = "30px";
+        finale.style.marginTop = "50px";
+        finale.style.textAlign = "center";
+        finale.innerText = ">> MISSION COMPLETE <<";
+        log.appendChild(finale);
+    }
+
+    /** --- Background Matrix --- **/
+    function initMatrix() {
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const columns = Math.floor(canvas.width / 20);
+        const drops = Array(columns).fill(1);
+        
+        function draw() {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#00ff9d";
+            ctx.font = "15px monospace";
+            for (let i = 0; i < drops.length; i++) {
+                const text = String.fromCharCode(Math.random() * 128);
+                ctx.fillText(text, i * 20, drops[i] * 20);
+                if (drops[i] * 20 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+        setInterval(draw, 50);
+    }
+</script>
+</body>
+</html>
